@@ -1,0 +1,2 @@
+# AndroidDragImageView
+重写android里的ImageView控件，能够缩放拖曳图片
