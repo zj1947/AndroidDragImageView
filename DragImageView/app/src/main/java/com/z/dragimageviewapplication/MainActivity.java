@@ -18,9 +18,6 @@ import java.util.ArrayList;
 
 public class MainActivity extends ActionBarActivity {
 
-    private static final String IMAGE_CACHE_DIR = "thumbs_big";
-
-
     private ViewPager mViewPager;
     private int iIndex;
 
@@ -40,6 +37,18 @@ public class MainActivity extends ActionBarActivity {
         getSupportActionBar().hide();
         setContentView(R.layout.activity_main);
 
+        initialize();
+
+    }
+
+    private void initialize() {
+        initData();
+        initView();
+        initListener();
+    }
+
+    private void initData() {
+
         imgLists=new ArrayList<>();
 
         for (Integer id:imgIds){
@@ -47,34 +56,19 @@ public class MainActivity extends ActionBarActivity {
         }
 
         iIndex=0;
+    }
+
+    private void initView() {
 
         mViewPager=(ViewPager)findViewById(R.id.vp_img_prev_container);
         viewPagerAdapter=new PictureSlidePagerAdapter(getSupportFragmentManager());
         mViewPager.setAdapter(viewPagerAdapter);
 
-
         initDots();
-
-        pageViewListener();
-
     }
 
-    @Override
-    public void onResume(){
-        super.onResume();
-    }
-    @Override
-    public void onPause(){
-        super.onPause();
-    }
-
-    @Override
-    public void onDestroy(){
-        super.onDestroy();
-    }
-
-    private void pageViewListener() {
-
+    private void initListener() {
+        //viewPager的页面切换监听
         mViewPager.setOnPageChangeListener(new ViewPager.OnPageChangeListener() {
             @Override
             public void onPageScrolled(int i, float v, int i2) {
@@ -110,17 +104,21 @@ public class MainActivity extends ActionBarActivity {
         }
     }
 
+    /**
+     * 初始化指示点，根据图片数组数量创建指示点
+     */
     private void initDots() {
 
-
+        //只有一张图片，或者没有图片，不创建指示点
         if (imgLists.size()<=1){
             return;
         }
-
+        //指示点的容器，横向linearLayout
         LinearLayout ll = (LinearLayout) findViewById(R.id.indicator);
 
         dots = new ImageView[imgLists.size()];
 
+        //两个指示点之间间隙
         int dip5= UiUtils.dip2px(this, 5);
 
         LinearLayout.LayoutParams layoutParams=new LinearLayout.LayoutParams(dip5*2,dip5,1);
@@ -133,13 +131,17 @@ public class MainActivity extends ActionBarActivity {
 
             ImageView imageView = new ImageView(this);
             dots[i] = imageView;
-            dots[i].setBackgroundColor(Color.WHITE);// 都设为灰色
+            dots[i].setBackgroundColor(Color.WHITE);// 都设为白色
             ll.addView(dots[i],layoutParams);
         }
 
         dots[iIndex].setBackgroundColor(Color.RED);// 设置为白色，即选中状态
     }
 
+    /**
+     * 设置指示点的选中位置
+     * @param position
+     */
     private void setCurrentDot(int position) {
 
         if (position < 0 || position > imgLists.size() - 1||imgLists.size()<=1
