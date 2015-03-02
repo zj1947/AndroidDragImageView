@@ -16,7 +16,7 @@ import android.widget.ImageView;
  */
 public class DragImageView extends ImageView {
 
-    private static final String TAG = "mViewPager——Touch";
+    private static final String TAG = "DragImageView";
     private float MAX_SCALE = 3f;
     private float MIN_SCALE = 0.5f;
     private float NORMAL_SCALE=1f;
@@ -27,11 +27,11 @@ public class DragImageView extends ImageView {
 
     private int screen_W, screen_H;// 可见屏幕的宽高度
 
-    private int bitmap_W, bitmap_H;// 当前图片宽高
+    private float bitmap_W, bitmap_H;// 当前图片宽高
 
     private boolean isScaleAnim = false;// 缩放动画
 
-    private float beforeLenght, afterLenght;// 两触点距离
+    private float beforeDistance, afterDistance;// 两触点距离
 
     private float scale_temp;// 缩放比例
     private float xCenterPoint;//缩放中心
@@ -48,7 +48,6 @@ public class DragImageView extends ImageView {
     /**
      * 模式 NONE：无 DRAG：拖拽. ZOOM:缩放
      *
-     * @author zhangjia
      */
     private enum MODE {
         NONE, DRAG, ZOOM
@@ -68,9 +67,6 @@ public class DragImageView extends ImageView {
         super(context);
     }
 
-//    public void setmActivity(Activity mActivity) {
-//        this.mActivity = mActivity;
-//    }
 
     /**
      * 可见屏幕宽度 *
@@ -94,18 +90,47 @@ public class DragImageView extends ImageView {
 
     /**
      * 设置显示图片
+     * @param bm
      */
-    public void setImageBitmap(Bitmap bm,float normalScale) {
+    public void setImageBitmap(Bitmap bm) {
 
-        super.setImageBitmap(bm);
         /** 获取图片宽高 **/
         bitmap_W = bm.getWidth();
         bitmap_H = bm.getHeight();
+
+        //设置图片缩放比例
         if (screen_W > 0) {
-            NORMAL_SCALE =   normalScale;
+            //一般比例，即缩放效果为屏幕大小
+            NORMAL_SCALE =   screen_W / bitmap_W;
             MIN_SCALE = NORMAL_SCALE / 2;
             MAX_SCALE = NORMAL_SCALE * 3;
         }
+
+        super.setImageBitmap(bm);
+        setNormalSize();
+    }
+
+    public void setNormalSize(){
+
+        Matrix matrix = getImageMatrix();
+        float matrixValue[] = new float[9];
+        matrix.getValues(matrixValue);
+        float scale = 1 / matrixValue[0] * NORMAL_SCALE;
+        matrix.postScale(scale, scale);
+
+        //缩放图片宽度至屏幕宽度
+        matrix.getValues(matrixValue);
+
+        float xCenterCoordinate = (screen_W - bitmap_W * scale) / 2;
+        float yCenterCoordinate = (screen_H - bitmap_H * scale) / 2;
+
+        float dx = xCenterCoordinate - matrixValue[2];
+        float dy = yCenterCoordinate - matrixValue[5];
+
+        //移动图片到屏幕中心
+        matrix.postTranslate(dx, dy);
+
+        setImageMatrix(matrix);
     }
 
 
@@ -115,7 +140,7 @@ public class DragImageView extends ImageView {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
 
-        dumpEvent(event);
+//        dumpEvent(event);
         boolean isOneselfDeal = true;
 
         /** 处理单点、多点触摸 **/
@@ -139,8 +164,8 @@ public class DragImageView extends ImageView {
                     if (//左拖动，且处于超过屏幕左边缘
                             (xAfterCoordinate >= 0 && xAfterCoordinate - xBeforeCoordinate >= 0) ||
                                     //右拖动，且处于超过屏幕右边缘
-                                    (bitmap_W * afterScale + xAfterCoordinate <= screen_W && xAfterCoordinate - xBeforeCoordinate < 0)
-                            ) {
+                            (bitmap_W * afterScale + xAfterCoordinate <= screen_W && xAfterCoordinate - xBeforeCoordinate < 0)
+                        ) {
 
 //                        matrix.getValues(afterMatrixValues);
 //                        afterScale = afterMatrixValues[0];
@@ -183,33 +208,6 @@ public class DragImageView extends ImageView {
         return isOneselfDeal;
     }
 
-
-    private void dumpEvent(MotionEvent event) {
-        String names[] = {"DOWN", "UP", "MOVE", "CANCEL", "OUTSIDE",
-                "POINTER_DOWN", "POINTER_UP", "7?", "8?", "9?"};
-        StringBuilder sb = new StringBuilder();
-        int action = event.getAction();
-        int actionCode = action & MotionEvent.ACTION_MASK;
-        sb.append("event ACTION_").append(names[actionCode]);
-        if (actionCode == MotionEvent.ACTION_POINTER_DOWN
-                || actionCode == MotionEvent.ACTION_POINTER_UP) {
-            sb.append("(pid ").append(
-                    action >> MotionEvent.ACTION_POINTER_ID_SHIFT);
-            sb.append(")");
-        }
-        sb.append("[");
-        for (int i = 0; i < event.getPointerCount(); i++) {
-            sb.append("#").append(i);
-            sb.append("(pid ").append(event.getPointerId(i));
-            sb.append(")=").append((int) event.getX(i));
-            sb.append(",").append((int) event.getY(i));
-            if (i + 1 < event.getPointerCount())
-                sb.append(";");
-        }
-        sb.append("]");
-//        Log.d(TAG, sb.toString());
-    }
-
     /**
      * 按下 *
      */
@@ -219,7 +217,7 @@ public class DragImageView extends ImageView {
         getParent().requestDisallowInterceptTouchEvent(true);
         matrix.set(getImageMatrix());
         savedMatrix.set(matrix);
-        savedMatrix.getValues(saveMatrixValues);
+        savedMatrix.getValues(saveMatrixValues);//保存移动前的数据到saveMatrixValues数组
         start.set(event.getX(), event.getY());
     }
 
@@ -229,10 +227,11 @@ public class DragImageView extends ImageView {
     void onPointerDown(MotionEvent event) {
 
 
-        beforeLenght = getDistance(event);// 获取两点的距离
-        if (event.getPointerCount() == 2 && beforeLenght > 10f) {
+        beforeDistance = getDistance(event);// 获取两点的距离
+        //两只手指，且指间隙大于10f
+        if (event.getPointerCount() == 2 && beforeDistance > 10f) {
             savedMatrix.set(matrix);
-            savedMatrix.getValues(saveMatrixValues);
+            savedMatrix.getValues(saveMatrixValues);//保存移动前的数据到saveMatrixValues数组
             mode = MODE.ZOOM;
         }
     }
@@ -246,14 +245,14 @@ public class DragImageView extends ImageView {
         beforeScale = beforeMatrixValues[0];
         xBeforeCoordinate = beforeMatrixValues[2];
         yBeforeCoordinate = beforeMatrixValues[5];
+
         /** 处理拖动 **/
         if (mode == MODE.DRAG) {
 
-            /** 在这里要进行判断处理，防止在drag时候越界 **/
-
-//            if(xBeforeCoordinate>=0&&){};
-
-            if (beforeScale * bitmap_W >= screen_W || beforeScale * bitmap_H > screen_H) {//图片宽度超过屏幕宽度才可以移动
+//            在这里要进行判断处理，防止在drag时候越界
+            if (beforeScale * bitmap_W >= screen_W||
+                beforeScale * bitmap_H > screen_H) {
+            //图片宽度超过屏幕宽度才可以移动
 
                 matrix.set(savedMatrix);
                 matrix.postTranslate(event.getX() - start.x, event.getY()
@@ -261,17 +260,16 @@ public class DragImageView extends ImageView {
 
             }
 
-        }
-        /** 处理缩放 **/
-        else if (mode == MODE.ZOOM) {
+        }else if (mode == MODE.ZOOM) {
+            /** 处理缩放 **/
 
-            afterLenght = getDistance(event);// 获取两点的距离
+            afterDistance = getDistance(event);// 获取两点的距离
 
-            float gapLenght = afterLenght - beforeLenght;// 变化的长度
+            float gapLenght = afterDistance - beforeDistance;// 变化的长度
 
             if (Math.abs(gapLenght) > 5f) {
 
-                scale_temp = afterLenght / beforeLenght;// 求的缩放的比例
+                scale_temp = afterDistance / beforeDistance;// 求的缩放的比例
                 this.setScale(scale_temp);
 
             }
@@ -312,11 +310,11 @@ public class DragImageView extends ImageView {
 //        scale=scale*NORMAL_SCALE;
         matrix.set(savedMatrix);
 
-        Log.d(TAG, "savedMatrix:" + matrix.toString());
+//        Log.d(TAG, "savedMatrix:" + matrix.toString());
 
         matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
 
-        Log.d(TAG, "matrix:" + matrix.toString() + "scale:" + scale + "NORMAL_SCALE:" + NORMAL_SCALE);
+//        Log.d(TAG, "matrix:" + matrix.toString() + "scale:" + scale + "NORMAL_SCALE:" + NORMAL_SCALE);
         matrix.getValues(afterMatrixValues);
         doDragBack();
 
@@ -330,7 +328,7 @@ public class DragImageView extends ImageView {
         afterScale = afterMatrixValues[0];
         if (afterScale < NORMAL_SCALE) {
             //放大1/afterScale倍
-            float scale = 1 / afterScale * screen_W/bitmap_W;
+            float scale = 1 / afterScale * NORMAL_SCALE;
             matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
         }
     }
