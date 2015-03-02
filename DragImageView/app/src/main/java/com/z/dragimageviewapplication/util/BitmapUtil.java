@@ -1,22 +1,15 @@
-﻿package com.z.dragimageviewapplication.util;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.URL;
-import java.net.URLEncoder;
+package com.z.dragimageviewapplication.util;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.os.Environment;
-import android.os.StatFs;
-import android.util.Log;
+
+import java.io.InputStream;
+
+/**
+ * Created by Administrator on 15-2-28.
+ */
 
 public class BitmapUtil {
     /**
@@ -46,7 +39,7 @@ public class BitmapUtil {
     public static Bitmap ReadBitmapById(Context context, int drawableId,
                                         int screenWidth, int screenHight) {
         BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inPreferredConfig = Config.ARGB_8888;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
         options.inInputShareable = true;
         options.inPurgeable = true;
         InputStream stream = context.getResources().openRawResource(drawableId);
