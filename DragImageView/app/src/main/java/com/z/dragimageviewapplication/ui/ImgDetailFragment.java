@@ -1,4 +1,4 @@
-﻿package com.z.dragimageviewapplication.ui;
+package com.z.dragimageviewapplication.ui;
 
 
 import android.graphics.Bitmap;
