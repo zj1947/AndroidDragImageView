@@ -293,11 +293,16 @@ public class DragImageView extends ImageView {
      */
     void setScale(float scale) {
 
+        float dScale=Math.abs(scale-beforeScale);
+        //防止缩放抖动
+        if (dScale<0.1f){
+            return;
+        }
+
         boolean isCanScale = false;
         // 放大
         if (scale > 1f && beforeScale <= MAX_SCALE) {
             isCanScale = true;
-//            matrix.postTranslate(dx,dy);
         }
         // 缩小
         else if (scale < 1f && beforeScale >= MIN_SCALE) {
