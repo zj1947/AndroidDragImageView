@@ -2,15 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.zsbab.ui.fragment.ImgDetailFragment">
-
-    <ProgressBar
-        android:id="@+id/pb_img_prev_loading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:visibility="visible"
-        style="?android:attr/progressBarStyleLarge"/>
+    tools:context="com.z.dragimageviewapplication.ui.ImgDetailFragment">
 
     <com.z.dragimageviewapplication.view.DragImageView
         android:layout_centerInParent="true"
