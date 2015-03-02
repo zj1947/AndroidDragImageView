@@ -1,4 +1,4 @@
-package com.z.dragimageviewapplication.ui;
+﻿package com.z.dragimageviewapplication.ui;
 
 
 import android.graphics.Bitmap;
@@ -22,15 +22,14 @@ import com.z.dragimageviewapplication.view.DragImageView;
  */
 public class ImgDetailFragment extends Fragment {
 
-    private static final String ARG_PARAM1 = "param1";
+    private static final String ARG_IMG_ID = "param1";
 
     private DragImageView imageView;
-    private ProgressBar progressBar;
 
     private int imgResourceId;//图片资源ID
     private int screenWidth;//屏幕宽度
     private int screenHeight;//屏幕高度
-    private int state_height=0;//状态栏高度
+    private int stateHeight =0;//状态栏高度
 
 
     /**
@@ -41,7 +40,7 @@ public class ImgDetailFragment extends Fragment {
     public static ImgDetailFragment newInstance(int imgResourceId) {
         ImgDetailFragment fragment = new ImgDetailFragment();
         Bundle arg = new Bundle();
-        arg.putInt(ARG_PARAM1, imgResourceId);
+        arg.putInt(ARG_IMG_ID, imgResourceId);
         fragment.setArguments(arg);
         return fragment;
     }
@@ -56,23 +55,24 @@ public class ImgDetailFragment extends Fragment {
         super.onCreate(saveInstanceState);
 
         if (getArguments() != null) {
-            imgResourceId = getArguments().getInt(ARG_PARAM1);
+            imgResourceId = getArguments().getInt(ARG_IMG_ID);
         }
 
-
+         //获取屏幕宽度
         screenWidth = UiUtils.getWindowWidth(this.getActivity());
+        //获取屏幕高度
         screenHeight = UiUtils.getWindowHeight(this.getActivity());
-
-        if (null==saveInstanceState&&state_height == 0) {
+        //获取状态栏高度
+        if (null==saveInstanceState) {
             Rect frame = new Rect();
             ImgDetailFragment.this.getActivity().getWindow().getDecorView()
                     .getWindowVisibleDisplayFrame(frame);
-            state_height = frame.top;
+            stateHeight = frame.top;
         }else {
-            state_height=saveInstanceState.getInt("state_height");
+            stateHeight =saveInstanceState.getInt("stateHeight");
         }
 
-        screenHeight = screenHeight - state_height;
+        screenHeight = screenHeight - stateHeight;
 
     }
 
@@ -84,7 +84,6 @@ public class ImgDetailFragment extends Fragment {
         View view = (View) inflater.inflate(R.layout.fragment_img_detail, container, false);
 
         imageView = (DragImageView) view.findViewById(R.id.iv_big_img);
-        progressBar = (ProgressBar) view.findViewById(R.id.pb_img_prev_loading);
 
         imageView.setScreen_H(screenHeight);
         imageView.setScreen_W(screenWidth);
@@ -96,15 +95,16 @@ public class ImgDetailFragment extends Fragment {
     @Override
     public void onActivityCreated(Bundle savedInstanceState){
         super.onActivityCreated(savedInstanceState);
+        //根据图片资源ID获取bitmap
+        final Bitmap bitmap=BitmapUtil.ReadBitmapById(getActivity(),imgResourceId);
 
-
-        setBitmap(BitmapUtil.ReadBitmapById(getActivity(),imgResourceId));
+        setBitmap(bitmap);
     }
 
 
     @Override
     public void onSaveInstanceState(Bundle outState){
-        outState.putInt("state_height", state_height);
+        outState.putInt("stateHeight", stateHeight);
 
         super.onSaveInstanceState(outState);
     }
@@ -118,34 +118,14 @@ public class ImgDetailFragment extends Fragment {
         super.onDetach();
     }
 
-    public void setBitmap( Bitmap loadedImage) {
+    public void setBitmap( Bitmap bitmap) {
 
+        if (null==bitmap){
+            return;
+        }
 
-        float bitmap_W = loadedImage.getWidth();
-        float bitmap_H = loadedImage.getHeight();
-
-        progressBar.setVisibility(View.GONE);
         imageView.setVisibility(View.VISIBLE);
-        imageView.setImageBitmap(loadedImage, screenWidth / bitmap_W);
-
-
-        Matrix matrix = imageView.getImageMatrix();
-        float matrixValue[] = new float[9];
-        matrix.getValues(matrixValue);
-        float scale = 1 / matrixValue[0] * screenWidth / bitmap_W;
-        matrix.postScale(scale, scale);
-
-        matrix.getValues(matrixValue);
-
-        float xCenterCoordinate = (screenWidth - bitmap_W * scale) / 2;
-        float yCenterCoordinate = (screenHeight - bitmap_H * scale) / 2;
-
-        float dx = xCenterCoordinate - matrixValue[2];
-        float dy = yCenterCoordinate - matrixValue[5];
-
-        matrix.postTranslate(dx, dy);
-
-        imageView.setImageMatrix(matrix);
+        imageView.setImageBitmap(bitmap);
 
     }
 
