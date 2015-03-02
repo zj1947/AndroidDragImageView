@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Rect;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -45,6 +46,7 @@ public class UiUtils {
         Display display = manager.getDefaultDisplay();
         return display.getHeight();
     }
+
 
     /**
      * dip数值转像素值
