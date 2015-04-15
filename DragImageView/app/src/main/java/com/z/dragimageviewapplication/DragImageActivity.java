@@ -16,7 +16,7 @@ import com.z.dragimageviewapplication.util.UiUtils;
 import java.util.ArrayList;
 
 
-public class MainActivity extends ActionBarActivity {
+public class DragImageActivity extends ActionBarActivity {
 
     private ViewPager mViewPager;
     private int iIndex;
@@ -35,7 +35,7 @@ public class MainActivity extends ActionBarActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getSupportActionBar().hide();
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_drag_image);
 
         initialize();
 
