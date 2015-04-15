@@ -63,6 +63,21 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
     }
 ```
 ####图片的移动
+主要代码，用PointF start保存按下的点坐标，当手指移动时用MotionEvent中的来取得移动点的坐标，以此计算移动距离，通过mmatrix.postTranslate(dx,dy)更改移动矩阵值，最后 调用imageview的setImageMatrix(matrix)实现图片平移
+```JAVA
+        PointF start = new PointF();//记录单指触摸屏幕点
+        Matrix savedMatrix = new Matrix();//保存手指按下时的Matrix
+        
+        //event为imageview的onTouch事件中的MotionEvent
+        float dx=event.getX() - start.x;
+        float dy=event.getY()- start.y;
+
+        matrix.set(savedMatrix);//还原拖动前的值，这里的移动值是相对值，不是绝对坐标值
+        matrix.postTranslate(dx,dy);
+        
+         setImageMatrix(matrix);//使matrix生效
+```
+具体代码，判断图片是否越界
 ```JAVA
     void onTouchDown(MotionEvent event) {
         mode = MODE.DRAG;
