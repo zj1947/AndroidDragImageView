@@ -6,7 +6,6 @@ import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.util.AttributeSet;
 import android.util.FloatMath;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.widget.ImageView;
 
@@ -17,34 +16,38 @@ import android.widget.ImageView;
 public class DragImageView extends ImageView {
 
     private static final String TAG = "DragImageView";
-    private float MAX_SCALE = 3f;
-    private float MIN_SCALE = 0.5f;
-    private float NORMAL_SCALE=1f;
 
-    Matrix matrix = new Matrix();
-    Matrix savedMatrix = new Matrix();
-    PointF start = new PointF();
+    private float MAX_SCALE = 3f;//图片放大最大倍数
+    private float MIN_SCALE = 0.5f;//图片缩小最小倍数
+    private float NORMAL_SCALE=1f;//正常倍数，缩放效果为屏幕宽度
+
+    private Matrix matrix = new Matrix();
+    private Matrix savedMatrix = new Matrix();//
+    private PointF start = new PointF();//记录单指触摸屏幕点
 
     private int screen_W, screen_H;// 可见屏幕的宽高度
-
     private float bitmap_W, bitmap_H;// 当前图片宽高
-
-    private boolean isScaleAnim = false;// 缩放动画
-
     private float beforeDistance, afterDistance;// 两触点距离
+
+    private boolean isScaleRestore = false;// 是否需要缩放还原
+
 
     private float scale_temp;// 缩放比例
     private float xCenterPoint;//缩放中心
     private float yCenterPoint;//缩放中心
 
-    private float afterScale;
-    private float xAfterCoordinate;
-    private float yAfterCoordinate;
+    private float afterScale;//图片拖放后的比例
+    private float xAfterCoordinate;//图片拖放后，左上顶点x坐标
+    private float yAfterCoordinate;//图片拖放后，左上顶点y坐标
 
-    private float beforeScale;//缩放前的比例
+    private float beforeScale;//图片拖前的比例
     private float xBeforeCoordinate;
-    private float yBeforeCoordinate;
 
+    private float beforeMatrixValues[] = new float[9];//图片移动前的矩阵
+    private float afterMatrixValues[] = new float[9];
+    private float saveMatrixValues[] = new float[9];
+
+    private MODE mode = MODE.NONE;// 默认模式
     /**
      * 模式 NONE：无 DRAG：拖拽. ZOOM:缩放
      *
@@ -53,35 +56,8 @@ public class DragImageView extends ImageView {
         NONE, DRAG, ZOOM
     };
 
-    private MODE mode = MODE.NONE;// 默认模式
-
-
-    private float beforeMatrixValues[] = new float[9];
-    private float afterMatrixValues[] = new float[9];
-    private float saveMatrixValues[] = new float[9];
-
-    /**
-     * 构造方法 *
-     */
     public DragImageView(Context context) {
         super(context);
-    }
-
-
-    /**
-     * 可见屏幕宽度 *
-     */
-    public void setScreen_W(int screen_W) {
-        this.screen_W = screen_W;
-        this.xCenterPoint = screen_W / 2;
-    }
-
-    /**
-     * 可见屏幕高度 *
-     */
-    public void setScreen_H(int screen_H) {
-        this.screen_H = screen_H;
-        this.yCenterPoint = screen_H / 2;
     }
 
     public DragImageView(Context context, AttributeSet attrs) {
@@ -107,10 +83,30 @@ public class DragImageView extends ImageView {
         }
 
         super.setImageBitmap(bm);
-        setNormalSize();
+        initImgSize();
     }
 
-    public void setNormalSize(){
+    /**
+     * 可见屏幕宽度 *
+     */
+    public void setScreen_W(int screen_W) {
+        this.screen_W = screen_W;
+        this.xCenterPoint = screen_W / 2;
+    }
+
+    /**
+     * 可见屏幕高度 *
+     */
+    public void setScreen_H(int screen_H) {
+        this.screen_H = screen_H;
+        this.yCenterPoint = screen_H / 2;
+    }
+
+    /**
+     * 初始化图片尺寸
+     * 缩放至屏幕宽度，居中
+     */
+    private void initImgSize(){
 
         Matrix matrix = getImageMatrix();
         float matrixValue[] = new float[9];
@@ -140,9 +136,6 @@ public class DragImageView extends ImageView {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
 
-//        dumpEvent(event);
-        boolean isOneselfDeal = true;
-
         /** 处理单点、多点触摸 **/
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
@@ -152,50 +145,21 @@ public class DragImageView extends ImageView {
                 onPointerDown(event);
                 break;
             case MotionEvent.ACTION_MOVE:
-                onTouchMove(event);
-
-                if (mode == MODE.DRAG) {
-
-                    doDragBack();
-
-                    xAfterCoordinate = afterMatrixValues[2];
-                    yAfterCoordinate = afterMatrixValues[5];
-                    afterScale = afterMatrixValues[0];
-                    if (//左拖动，且处于超过屏幕左边缘
-                            (xAfterCoordinate >= 0 && xAfterCoordinate - xBeforeCoordinate >= 0) ||
-                                    //右拖动，且处于超过屏幕右边缘
-                            (bitmap_W * afterScale + xAfterCoordinate <= screen_W && xAfterCoordinate - xBeforeCoordinate < 0)
-                        ) {
-
-//                        matrix.getValues(afterMatrixValues);
-//                        afterScale = afterMatrixValues[0];
-//                        float scale = 1 / afterScale * NORMAL_SCALE;
-//                        matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
-//                        matrix.getValues(afterMatrixValues);
-//                        doDragBack();
-
-//                        if(afterScale<=NORMAL_SCALE){
-                            setImageMatrix(matrix);
-
-                            getParent().requestDisallowInterceptTouchEvent(false);
-                            return false;
-//                        }
-
-                    } else {
-//                        getParent().requestDisallowInterceptTouchEvent(true);
-                    }
+                boolean isNeedIntercept=onTouchMove(event);
+                //是否需要父类组件拦截处理
+                if (isNeedIntercept) {
+//                    返回false，让父类控件处理
+                    return false;
                 }
 
                 break;
             case MotionEvent.ACTION_UP:
-                /** 执行拖曳还原 **/
-//                doDragBack();
                 mode = MODE.NONE;
                 break;
             case MotionEvent.ACTION_POINTER_UP:
                 mode = MODE.NONE;
                 /** 执行缩放还原 **/
-                if (isScaleAnim) {
+                if (isScaleRestore) {
                     doScaleAnim();
                 }
                 break;
@@ -205,11 +169,11 @@ public class DragImageView extends ImageView {
         }
 
         setImageMatrix(matrix);
-        return isOneselfDeal;
+        return true;
     }
 
     /**
-     * 按下 *
+     * 单指按下 *
      */
     void onTouchDown(MotionEvent event) {
         mode = MODE.DRAG;
@@ -239,24 +203,45 @@ public class DragImageView extends ImageView {
     /**
      * 移动的处理 *
      */
-    void onTouchMove(MotionEvent event) {
+    boolean onTouchMove(MotionEvent event) {
 
         matrix.getValues(beforeMatrixValues);
-        beforeScale = beforeMatrixValues[0];
+        beforeScale = beforeMatrixValues[0];//图片左上顶点x坐标
         xBeforeCoordinate = beforeMatrixValues[2];
-        yBeforeCoordinate = beforeMatrixValues[5];
 
         /** 处理拖动 **/
         if (mode == MODE.DRAG) {
 
 //            在这里要进行判断处理，防止在drag时候越界
-            if (beforeScale * bitmap_W >= screen_W||
-                beforeScale * bitmap_H > screen_H) {
-            //图片宽度超过屏幕宽度才可以移动
+            //图片宽度超过屏幕宽度可以移动
+            boolean isWidthBeyond=beforeScale * bitmap_W >= screen_W;
+            //图片高度超过屏幕高度可以移动
+            boolean isHeightBeyond=beforeScale * bitmap_H > screen_H;
 
-                matrix.set(savedMatrix);
-                matrix.postTranslate(event.getX() - start.x, event.getY()
-                        - start.y);
+            if (isWidthBeyond||isHeightBeyond) {
+
+                float dx=event.getX() - start.x;
+                float dy=event.getY()- start.y;
+
+                matrix.set(savedMatrix);//还原拖动前的值，这里的移动值是相对值，不是绝对坐标值
+                matrix.postTranslate(dx,dy);
+
+            }
+            getAfterMatrixValues();
+
+            doDragBack();
+
+            //左拖动，且处于超过屏幕左边缘
+            boolean isLeftBeyond=(xAfterCoordinate >= 0 && xAfterCoordinate - xBeforeCoordinate >= 0);
+            //右拖动，且处于超过屏幕右边缘
+            boolean isRightBeyond=(bitmap_W * afterScale + xAfterCoordinate <= screen_W && xAfterCoordinate - xBeforeCoordinate < 0);
+
+            if (isLeftBeyond ||isRightBeyond) {
+
+                setImageMatrix(matrix);
+                //调用父类控件进行touchEvent拦截，让父类控件处理该事件
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
 
             }
 
@@ -273,9 +258,9 @@ public class DragImageView extends ImageView {
                 this.setScale(scale_temp);
 
             }
+            matrix.getValues(afterMatrixValues);
         }
-        matrix.getValues(afterMatrixValues);
-
+        return false;
     }
 
     /**
@@ -289,48 +274,22 @@ public class DragImageView extends ImageView {
     }
 
     /**
-     * 处理缩放 *
+     * 获取矩阵变化后的矩阵值
      */
-    void setScale(float scale) {
+    void getAfterMatrixValues(){
 
-        float dScale=Math.abs(scale-beforeScale);
-        //防止缩放抖动
-        if (dScale<0.1f){
-            return;
-        }
-
-        boolean isCanScale = false;
-        // 放大
-        if (scale > 1f && beforeScale <= MAX_SCALE) {
-            isCanScale = true;
-        }
-        // 缩小
-        else if (scale < 1f && beforeScale >= MIN_SCALE) {
-            isCanScale = true;
-            isScaleAnim = true;
-        }
-        if (!isCanScale)
-            return;
-
-//        scale=scale*NORMAL_SCALE;
-        matrix.set(savedMatrix);
-
-//        Log.d(TAG, "savedMatrix:" + matrix.toString());
-
-        matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
-
-//        Log.d(TAG, "matrix:" + matrix.toString() + "scale:" + scale + "NORMAL_SCALE:" + NORMAL_SCALE);
         matrix.getValues(afterMatrixValues);
-        doDragBack();
 
-//        Log.d(TAG,"matrix:"+matrix.toString());
+        afterScale = afterMatrixValues[0];
+        xAfterCoordinate = afterMatrixValues[2];//图片左上顶点x坐标
+        yAfterCoordinate = afterMatrixValues[5];//图片左上顶点y坐标
+
     }
 
     /**
-     * 缩小还原大小
+     * 缩小还原大小，缩放至图片宽度
      */
     public void doScaleAnim() {
-        afterScale = afterMatrixValues[0];
         if (afterScale < NORMAL_SCALE) {
             //放大1/afterScale倍
             float scale = 1 / afterScale * NORMAL_SCALE;
@@ -339,54 +298,74 @@ public class DragImageView extends ImageView {
     }
 
     /**
-     * 位置处理，图片超过边缘，则返回边缘，图片大小小于屏幕，则返回中间
+     * 处理缩放 *
+     */
+    void setScale(float scale) {
+
+        boolean isCanScale = false;
+        if (scale > NORMAL_SCALE && beforeScale <= MAX_SCALE) {
+            // 放大
+            isCanScale = true;
+        }else if (scale < NORMAL_SCALE && beforeScale >= MIN_SCALE) {
+            // 缩小
+            isCanScale = true;
+            isScaleRestore = true;
+        }
+        if (!isCanScale)
+            return;
+
+        matrix.set(savedMatrix);//还原放大前的值，这里的放大倍数是绝对值，不是相对值
+        matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
+        getAfterMatrixValues();
+        doDragBack();
+
+    }
+
+    /**
+     * 位置处理，图片超过边缘，则返回边缘，图片尺寸小于屏幕，则返回中间
      */
     public void doDragBack() {
 
 
-        afterScale = afterMatrixValues[0];
-
-        xAfterCoordinate = afterMatrixValues[2];//图片左上顶点x坐标
-        yAfterCoordinate = afterMatrixValues[5];//图片左上顶点y坐标
-
-
         float imgWidth = bitmap_W * afterScale;//图片宽度=图片原始宽度x缩放倍数
-        float imgHeight = bitmap_H * afterScale;//图片宽度=图片原始宽度x缩放倍数
+        float imgHeight = bitmap_H * afterScale;//图片高度=图片原始高度度x缩放倍数
 
         if (mode == MODE.DRAG) {
-            //如果图片大于屏幕，，不处理返回
-            boolean isCanDrag = imgWidth >= screen_W || imgHeight >= screen_H;
-            if (!isCanDrag) {
+            //在拖动模式下，如果图片大于屏幕，，不处理返回
+            boolean isDeal = imgWidth >= screen_W || imgHeight >= screen_H;
+
+            if (!isDeal) {
                 return;
             }
         }
 
 
-        boolean isDragBackHorizontal = false;
-        boolean isDragBackVertical = false;
+        boolean isDragBackHorizontal = false;//能否图片水平方向变变化
+        boolean isDragBackVertical = false;//能否图片垂直方向变化
 
 
-        float xCenterCoordinate = (screen_W - imgWidth) / 2;
-        float yCenterCoordinate = (screen_H - imgHeight) / 2;
+        float xCenterCoordinate = (screen_W - imgWidth) / 2;//图片x轴中心点
+        float yCenterCoordinate = (screen_H - imgHeight) / 2;//图片y轴中心点
 
-        float dx = 0;
-        float dy = 0;
+        float xEdgeCoordinate=xAfterCoordinate + imgWidth;//图片x轴边沿坐标
+        float yEdgeCoordinate=yAfterCoordinate + imgHeight;//图片y轴边沿坐标
+
+        float dx = 0;//水平方向调整距离
+        float dy = 0;//垂直方向调整距离
 
         /** 水平进行判断 **/
-        //是否超过右移超过左边屏幕
         if (xAfterCoordinate > 0) {
+            //是否图片右边越过左边屏幕
             dx = -xAfterCoordinate;
-//            dx=screen_W/2-xAfterCoordinate;
+            isDragBackHorizontal = true;
+        }else if (xEdgeCoordinate< screen_W) {
+            //是否图片左边越过右边屏幕
+            dx = screen_W - xEdgeCoordinate;
             isDragBackHorizontal = true;
 
         }
-        //是否超过左移超过右边屏幕
-        else if ((xAfterCoordinate + imgWidth) < screen_W) {
-            dx = screen_W - xAfterCoordinate - imgWidth;
-            isDragBackHorizontal = true;
 
-        }
-        //如果图片高度小于屏幕高度，返回中间
+        //如果图片宽度小于屏幕宽度，返回中间
         if (imgWidth < screen_W) {
             dx = xCenterCoordinate - xAfterCoordinate;
             isDragBackHorizontal = true;
@@ -394,15 +373,13 @@ public class DragImageView extends ImageView {
 
 
         /** 垂直进行判断 **/
-        //是否超过下移超过上边屏幕
         if (yAfterCoordinate > 0) {
+            //是否图片上面越过上边屏幕
             dy = -yAfterCoordinate;
             isDragBackVertical = true;
-
-        }
-        //是否超过上移超过下边屏幕
-        else if ((yAfterCoordinate + imgHeight) < screen_H) {
-            dy = screen_H - yAfterCoordinate - imgHeight;
+        }else if (yEdgeCoordinate < screen_H) {
+            //是否图片下面越过下边屏幕
+            dy = screen_H -yEdgeCoordinate;
             isDragBackVertical = true;
 
         }
@@ -411,10 +388,8 @@ public class DragImageView extends ImageView {
             dy = yCenterCoordinate - yAfterCoordinate;
             isDragBackVertical = true;
         }
-//            Log.d(TAG+"isDragBack","dx:"+dx+"screen_W:"+screen_W+"xAfterCoordinate:"+xAfterCoordinate+"bitmap_W:"+bitmap_W);
         if (isDragBackHorizontal || isDragBackVertical)
             matrix.postTranslate(dx, dy);
-
     }
 
 
