@@ -1,7 +1,7 @@
 ## AndroidDragImageView
-重写android里的ImageView控件，能够缩放拖曳图片，支持ViewPager
+重写android里的ImageView控件，支持缩放拖曳图片，支持ViewPager
 ###使用
-DragImageView继承ImageView类，直接在layout文件中引用，但要设置scaleType属性为"matrix"，因为是使用Matrix实现图片的缩放和平移。<br>
+DragImageView继承ImageView类，直接在layout文件中引用，但要设置scaleType属性为"matrix"，使用Matrix实现图片的缩放和平移。
 ```xml
     <com.z.dragimageviewapplication.view.DragImageView
         android:layout_centerInParent="true"
@@ -12,6 +12,9 @@ DragImageView继承ImageView类，直接在layout文件中引用，但要设置s
         android:scaleType="matrix" />
 ```
 ###关键代码
+
+重写imageview的onTouchMove方法，根据MotionEvent的不同action来设置Matrix的缩放移动数据，最后再调用imageview的setImageMatrix(matrix)使图片发生变化
+#####关于Matrix
 在Android图形API中提供了一个Matrix矩形类，该类具有一个3×3的矩阵坐标。通过该类可以实现图形的旋转、平移和缩放<br>
 
 这里用到的Matrix方法：<br>
@@ -20,7 +23,6 @@ void postScale(float sx, float sy, float px, float py) 	以坐标（px,py）进�
 void postTranslate(float dx, float dy) 	平移<br>
 getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮点数组里<br>
 
-重写imageview的onTouchMove方法，根据MotionEvent的不同action来设置Matrix的缩放移动数据，最后再调用imageview的setImageMatrix(matrix)使图片变化
 
 ```JAVA
 @Override
@@ -29,12 +31,13 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
         /** 处理单点、多点触摸 **/
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
-                onTouchDown(event);//这里处理单指按下时的事件
+                onTouchDown(event);//处理单指按下时的事件，设置为移动模式
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
-                onPointerDown(event);//这里处理多指按下时的事件
+                onPointerDown(event);//处理多指按下时的事件，设置为缩放模式
                 break;
             case MotionEvent.ACTION_MOVE:
+                //处理手指移动时的事件
                 boolean isNeedIntercept=onTouchMove(event);
                 //是否需要父类组件拦截处理，目的是为了支持viewpager
                 if (isNeedIntercept) {
@@ -48,7 +51,7 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
                 break;
             case MotionEvent.ACTION_POINTER_UP:
                 mode = MODE.NONE;
-                /** 执行缩放还原 **/
+                /** 是否执行缩放还原 **/
                 if (isScaleRestore) {
                     doScaleAnim();
                 }
@@ -57,27 +60,33 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
                 getParent().requestDisallowInterceptTouchEvent(false);
                 break;
         }
-
+        //执行图片变化
         setImageMatrix(matrix);
         return true;
     }
 ```
 ####图片的移动
-主要代码，用PointF start保存按下的点坐标，当手指移动时用MotionEvent中的来取得移动点的坐标，以此计算移动距离，通过mmatrix.postTranslate(dx,dy)更改移动矩阵值，最后 调用imageview的setImageMatrix(matrix)实现图片平移
+当手指触摸屏幕时，用PointF start保存按下的点坐标及用savedMatrix保存矩阵值；当手指移动时用MotionEvent中的来取得移动点的坐标，以此计算移动距离。通过mmatrix.postTranslate(dx,dy)更改移动矩阵值，最后调用imageview的setImageMatrix(matrix)实现图片平移
 ```JAVA
         PointF start = new PointF();//记录单指触摸屏幕点
         Matrix savedMatrix = new Matrix();//保存手指按下时的Matrix
         
-        //event为imageview的onTouch事件中的MotionEvent
-        float dx=event.getX() - start.x;
+        //在onTouchDown(event)事件中，保存手指触摸屏幕时的坐标点及矩阵值
+          matrix.set(getImageMatrix());
+        savedMatrix.set(matrix);
+        savedMatrix.getValues(saveMatrixValues);//保存移动前的数据到saveMatrixValues数组
+        start.set(event.getX(), event.getY());
+        
+        //在onTouchMove(event)事件中，计算移动距离，还原触摸时时的矩阵值，并设置其移动偏移量
+        float dx=event.getX() - start.x;//计算x轴的偏移
         float dy=event.getY()- start.y;
 
         matrix.set(savedMatrix);//还原拖动前的值，这里的移动值是相对值，不是绝对坐标值
         matrix.postTranslate(dx,dy);
-        
+        //最后
          setImageMatrix(matrix);//使matrix生效
 ```
-具体代码，判断图片是否越界
+具体代码，主要针对图片的越界处理
 ```JAVA
     void onTouchDown(MotionEvent event) {
         mode = MODE.DRAG;
@@ -138,6 +147,37 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
     }
 ```
 ####图片的缩放
+当两只手指触摸屏幕且手指间隙大于10f时，设置为缩放模式，用savedMatrix保存矩阵值；为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。放大倍数为，两指之间的即时距离与刚触摸屏幕是的距离之比。通过postScale(float sx, float sy, float px, float py)更改缩放矩阵值，最后调用imageview的setImageMatrix(matrix)实现图片平移。
+```JAVA
+    float beforeDistance;// 保存手指触摸屏幕时，两触点距离
+    Matrix savedMatrix = new Matrix();//保存手指按下时的Matrix
+    
+    //在onPointerDown事件中，当两只手指触摸屏幕且手指间隙大于10f时，设置为缩放模式，用savedMatrix保存矩阵值
+    
+        beforeDistance = getDistance(event);// 获取两点的距离
+        //两只手指，且指间隙大于10f
+        if (event.getPointerCount() == 2 && beforeDistance > 10f) {
+            savedMatrix.set(matrix);
+            savedMatrix.getValues(saveMatrixValues);//保存移动前的数据到saveMatrixValues数组
+            mode = MODE.ZOOM;
+        }
+        
+    //在onTouchMove(event)事件中，为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。放大倍数为，两指之间的即时距     //离与刚触摸屏幕是的距离之比。通过postScale(float sx, float sy, float px, float py)更改缩放矩阵值
+            
+            afterDistance = getDistance(event);// 获取两点的距离
+            float gapLenght = afterDistance - beforeDistance;// 变化的长度
+            
+            //为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放
+            if (Math.abs(gapLenght) > 5f) {
+                scale_temp = afterDistance / beforeDistance;// 求的缩放的比例
+                 matrix.set(savedMatrix);//还原放大前的值，这里的放大倍数是绝对值，不是相对值
+                 matrix.postScale(scale, scale, xCenterPoint, yCenterPoint);
+                 getAfterMatrixValues();
+            }
+    //最后
+         setImageMatrix(matrix);//使matrix生效
+```
+具体代码，主要针对图片缩放时的居中处理、缩小图片时的还原以及限定图片的缩放范围
 ```JAVA
     /**
      * 两个手指操作，缩放模式
@@ -203,3 +243,5 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
 
     }
 ```
+###存在的问题
+在viewpager切换时，imageview跳跃过大，还没优化
