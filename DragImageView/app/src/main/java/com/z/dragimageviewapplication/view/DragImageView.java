@@ -30,7 +30,7 @@ public class DragImageView extends ImageView {
     private float beforeDistance, afterDistance;// 两触点距离
 
     private boolean isScaleRestore = false;// 是否需要缩放还原
-
+    private boolean isNeedIntercept=false;//是否需要父类组件拦截处理
 
     private float scale_temp;// 缩放比例
     private float xCenterPoint;//缩放中心
@@ -145,10 +145,12 @@ public class DragImageView extends ImageView {
                 onPointerDown(event);
                 break;
             case MotionEvent.ACTION_MOVE:
-                boolean isNeedIntercept=onTouchMove(event);
-                //是否需要父类组件拦截处理
+                //处理手指移动时的事件
+                onTouchMove(event);
+
                 if (isNeedIntercept) {
 //                    返回false，让父类控件处理
+                    isNeedIntercept=false;
                     return false;
                 }
 
@@ -161,6 +163,7 @@ public class DragImageView extends ImageView {
                 /** 执行缩放还原 **/
                 if (isScaleRestore) {
                     doScaleAnim();
+                    isScaleRestore=false;
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
@@ -186,7 +189,7 @@ public class DragImageView extends ImageView {
     }
 
     /**
-     * 两个手指 只能放大缩小 *
+     * 两个手指操作，缩放模式 *
      */
     void onPointerDown(MotionEvent event) {
 
@@ -203,7 +206,7 @@ public class DragImageView extends ImageView {
     /**
      * 移动的处理 *
      */
-    boolean onTouchMove(MotionEvent event) {
+    void onTouchMove(MotionEvent event) {
 
         matrix.getValues(beforeMatrixValues);
         beforeScale = beforeMatrixValues[0];//图片左上顶点x坐标
@@ -241,7 +244,7 @@ public class DragImageView extends ImageView {
                 setImageMatrix(matrix);
                 //调用父类控件进行touchEvent拦截，让父类控件处理该事件
                 getParent().requestDisallowInterceptTouchEvent(false);
-                return true;
+                isNeedIntercept=true;
 
             }
 
@@ -260,7 +263,6 @@ public class DragImageView extends ImageView {
             }
             matrix.getValues(afterMatrixValues);
         }
-        return false;
     }
 
     /**
