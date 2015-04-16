@@ -162,7 +162,8 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
             mode = MODE.ZOOM;
         }
         
-    //在onTouchMove(event)事件中，为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。<br>                       //放大倍数为，两指之间的即时距离与刚触摸屏幕是的距离之比。<br> 
+    //在onTouchMove(event)事件中，为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。
+    //放大倍数为，两指之间的即时距离与刚触摸屏幕是的距离之比。
     //通过postScale(float sx, float sy, float px, float py)更改缩放矩阵值
             
             afterDistance = getDistance(event);// 获取两点的距离
