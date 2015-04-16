@@ -38,10 +38,10 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
                 break;
             case MotionEvent.ACTION_MOVE:
                 //处理手指移动时的事件
-                boolean isNeedIntercept=onTouchMove(event);
-                //是否需要父类组件拦截处理，目的是为了支持viewpager
+               onTouchMove(event);
                 if (isNeedIntercept) {
 //                    返回false，让父类控件处理
+                    isNeedIntercept=false;
                     return false;
                 }
 
@@ -51,9 +51,10 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
                 break;
             case MotionEvent.ACTION_POINTER_UP:
                 mode = MODE.NONE;
-                /** 是否执行缩放还原 **/
+                /** 执行缩放还原 **/
                 if (isScaleRestore) {
                     doScaleAnim();
+                    isScaleRestore=false;
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
@@ -100,7 +101,7 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
         /**
      * 移动的处理 *
      */
-    boolean onTouchMove(MotionEvent event) {
+    void onTouchMove(MotionEvent event) {
 
         matrix.getValues(beforeMatrixValues);
         beforeScale = beforeMatrixValues[0];//图片左上顶点x坐标
@@ -138,12 +139,11 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
                 setImageMatrix(matrix);
                 //调用父类控件进行touchEvent拦截，让父类控件处理该事件
                 getParent().requestDisallowInterceptTouchEvent(false);
-                return true;
+                isNeedIntercept=true;
 
             }
 
         }
-        return false;
     }
 ```
 ####图片的缩放
@@ -162,7 +162,8 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
             mode = MODE.ZOOM;
         }
         
-    //在onTouchMove(event)事件中，为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。放大倍数为，两指之间的即时距     //离与刚触摸屏幕是的距离之比。通过postScale(float sx, float sy, float px, float py)更改缩放矩阵值
+    //在onTouchMove(event)事件中，为防止抖动，当两只手指移动变化长度大于5f时，才应用缩放。<br>                       //放大倍数为，两指之间的即时距离与刚触摸屏幕是的距离之比。<br> 
+    //通过postScale(float sx, float sy, float px, float py)更改缩放矩阵值
             
             afterDistance = getDistance(event);// 获取两点的距离
             float gapLenght = afterDistance - beforeDistance;// 变化的长度
@@ -196,7 +197,7 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
      /**
      * 移动的处理 *
      */
-    boolean onTouchMove(MotionEvent event) {
+    void onTouchMove(MotionEvent event) {
 
         matrix.getValues(beforeMatrixValues);
         beforeScale = beforeMatrixValues[0];//图片左上顶点x坐标
@@ -217,7 +218,7 @@ getValues(float[] values)  复制matrix里的矩阵值到一个长度为9的浮�
             }
             matrix.getValues(afterMatrixValues);
         }
-        return false;
+        
     }
      /**
      * 处理缩放 *
